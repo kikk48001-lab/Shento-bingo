@@ -1,0 +1,559 @@
+const socket = io("http://localhost:3000");
+
+let playerName = "";
+let balance = 1000;
+
+// JOIN
+function joinGame() {
+    playerName = document.getElementById("nameInput").value;
+
+    if (playerName === "") {
+        alert("Enter name!");
+        return;
+    }
+
+    socket.emit("join", playerName);
+
+    document.getElementById("login").style.display = "none";
+    document.getElementById("game").style.display = "block";
+
+    generateCard();
+}
+
+// GENERATE CARD
+function generateCard() {
+    const card = document.getElementById("bingoCard");
+    card.innerHTML = "";
+
+    let numbers = [];
+
+    while (numbers.length < 25) {
+        let num = Math.floor(Math.random() * 75) + 1;
+        if (!numbers.includes(num)) numbers.push(num);
+    }
+
+    numbers.forEach(num => {
+        let cell = document.createElement("div");
+        cell.classList.add("cell");
+        cell.innerText = num;
+
+        cell.onclick = () => {
+            cell.classList.toggle("marked");
+        };
+
+        card.appendChild(cell);
+    });
+}
+
+// RECEIVE NUMBER
+socket.on("number", (num) => {
+    document.getElementById("calledNumber").innerText = num;
+
+    document.querySelectorAll(".cell").forEach(cell => {
+        if (parseInt(cell.innerText) === num) {
+            cell.classList.add("hit");
+        }
+    });
+});
+
+// LEADERBOARD
+socket.on("leaderboard", (players) => {
+    let board = document.getElementById("leaderboard");
+    board.innerHTML = "";
+
+    players.forEach(p => {
+        let li = document.createElement("li");
+        li.innerText = p.name + " : " + p.score;
+        board.appendChild(li);
+    });
+});
+
+// CHECK BINGO
+function checkBingo() {
+    let cells = document.querySelectorAll(".cell");
+    let grid = [];
+
+    for (let i = 0; i < 25; i += 5) {
+        let row = [];
+        for (let j = i; j < i + 5; j++) {
+            row.push(cells[j].classList.contains("marked") || cells[j].classList.contains("hit"));
+        }
+        grid.push(row);
+    }
+
+    let win = false;
+
+    grid.forEach(row => {
+        if (row.every(c => c)) win = true;
+    });
+
+    for (let i = 0; i < 5; i++) {
+        let col = [];
+        for (let j = 0; j < 5; j++) col.push(grid[j][i]);
+        if (col.every(c => c)) win = true;
+    }
+
+    if ([0,1,2,3,4].every(i => grid[i][i])) win = true;
+    if ([0,1,2,3,4].every(i => grid[i][4-i])) win = true;
+
+    let bet = parseInt(document.getElementById("bet").value);
+    let result = document.getElementById("result");
+
+    if (win) {
+        balance += bet;
+        result.innerText = "🎉 BINGO WIN!";
+        result.style.color = "lime";
+        socket.emit("score", { name: playerName, score: bet });
+    } else {
+        balance -= bet;
+        result.innerText = "❌ Lost!";
+        result.style.color = "red";
+    }
+
+    document.getElementById("balance").innerText = balance;
+}
+
+// RESTART
+function restartGame() {
+    generateCard();
+    document.getElementById("result").innerText = "";
+}
+[4/19/2026 9:23 PM] Efe B: <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ultimate Bingo Casino</title>
+
+<style>
+body {
+    background: #0b0b0b;
+    color: white;
+    font-family: Arial;
+    text-align: center;
+}
+
+h1 { color: gold; }
+
+input {
+    padding: 10px;
+    margin: 10px;
+}
+
+button {
+    padding: 10px;
+    margin: 5px;
+    border-radius: 5px;
+    border: none;
+    font-size: 16px;
+}
+
+#login { margin-top: 50px; }
+#game { display: none; }
+
+#balance { color: lime; }
+#admin { color: orange; }
+
+#number {
+    font-size: 30px;
+    color: cyan;
+    margin: 10px;
+}
+
+table {
+    margin: auto;
+    border-collapse: collapse;
+}
+
+td {
+    width: 60px;
+    height: 60px;
+    border: 2px solid white;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+td.marked {
+    background: green;
+}
+
+.win {
+    color: gold;
+    font-size: 25px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎰 Ultimate Bingo Casino</h1>
+
+<!-- LOGIN -->
+<div id="login">
+    <input type="text" id="username" placeholder="Enter your name">
+    <br>
+    <button onclick="login()">Login</button>
+</div>
+
+<!-- GAME -->
+<div id="game">
+
+    <h2 id="playerName"></h2>
+
+    💰 Player: <span id="balance"></span> |
+    👑 Admin: <span id="admin"></span>
+
+    <div id="number">Number: -</div>
+
+    <button onclick="callNumber()">🎲 Call Number</button>
+    <button onclick="restart()">🔄 Restart</button>
+
+    <table id="card"></table>
+
+    <div id="result" class="win"></div>
+
+</div>
+
+<audio id="winSound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+
+<script>
+let player = "";
+let balance = 1000;
+let adminBalance = 0;
+let bet = 50;
+
+let numbers = [];
+let called = [];
+
+// LOGIN
+function login() {
+    player = document.getElementById("username").value;
+    if (!player) return alert("Enter name!");
+
+    let saved = localStorage.getItem(player);
+    if (saved) {
+        let data = JSON.parse(saved);
+        balance = data.balance;
+        adminBalance = data.admin;
+    }
+
+    document.getElementById("login").style.display = "none";
+    document.getElementById("game").style.display = "block";
+    document.getElementById("playerName").innerText = "👤 " + player;
+
+    updateBalance();
+    generateCard();
+}
+
+// SAVE DATA
+function save() {
+    localStorage.setItem(player, JSON.stringify({
+        balance: balance,
+        admin: adminBalance
+    }));
+}
+
+// GENERATE CARD
+function generateCard() {
+    let table = document.getElementById("card");
+    table.innerHTML = "";
+    numbers = [];
+
+    for (let i = 0; i < 25; i++) {
+        numbers.push(Math.floor(Math.random() * 75) + 1);
+    }
+
+    for (let r = 0; r < 5; r++) {
+        let row = table.insertRow();
+        for (let c = 0; c < 5; c++) {
+            let cell = row.insertCell();
+            let num = numbers[r*5 + c];
+            cell.innerText = num;
+
+            cell.onclick = function() {
+                if (called.includes(num)) {
+                    cell.classList.toggle("marked");
+                    checkWin();
+                } else {
+                    alert("❌ Not called!");
+                }
+            }
+        }
+    }
+}
+
+// CALL NUMBER
+function callNumber() {
+    if (balance <= 0) {
+        alert("💀 Game Over!");
+        return;
+    }
+
+    let num;
+    do {
+        num = Math.floor(Math.random() * 75) + 1;
+    } while (called.includes(num));
+
+    called.push(num);
+    document.getElementById("number").innerText = "Number: " + num;
+
+    // BET
+    balance -= bet;
+
+    // ADMIN 20%
+    let adminCut = bet * 0.2;
+    adminBalance += adminCut;
+
+    updateBalance();
+    save();
+}
+
+// CHECK WIN
+function checkWin() {
+    let cells = document.querySelectorAll("td");
+    let win = true;
+
+    cells.forEach(cell => {
+        if (!cell.classList.contains("marked")) {
+            win = false;
+        }
+    });
+
+    if (win) {
+        document.getElementById("result").innerText = "🎉 BINGO! YOU WIN!";
+        balance += 500;
+        updateBalance();
+        save();
+        document.getElementById("winSound").play();
+    }
+}
+[4/19/2026 9:28 PM] Efe B: <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ultimate Bingo Casino</title>
+
+<style>
+body {
+    background: #0b0b0b;
+    color: white;
+    font-family: Arial;
+    text-align: center;
+}
+
+h1 { color: gold; }
+
+input, button {
+    padding: 10px;
+    margin: 5px;
+}
+
+#login { margin-top: 50px; }
+#game { display: none; }
+
+#balance { color: lime; }
+#admin { color: orange; }
+
+#number {
+    font-size: 30px;
+    color: cyan;
+    margin: 10px;
+}
+
+table {
+    margin: auto;
+    border-collapse: collapse;
+}
+
+td {
+    width: 60px;
+    height: 60px;
+    border: 2px solid white;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+td.marked { background: green; }
+
+.win {
+    color: gold;
+    font-size: 25px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎰 Ultimate Bingo Casino</h1>
+
+<!-- LOGIN -->
+<div id="login">
+    <input type="text" id="username" placeholder="Enter your name">
+    <br>
+    <button onclick="login()">Login</button>
+</div>
+
+<!-- GAME -->
+<div id="game">
+
+    <h2 id="playerName"></h2>
+
+    💰 Player: <span id="balance"></span> |
+    👑 Admin: <span id="admin"></span>
+
+    <div id="number">Number: -</div>
+
+    <button onclick="callNumber()">🎲 Call</button>
+    <button onclick="restart()">🔄 Restart</button>
+
+    <table id="card"></table>
+
+    <div id="result" class="win"></div>
+
+</div>
+
+<audio id="winSound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+
+<script>
+let player = "";
+let balance = 1000;
+let adminBalance = 0;
+let bet = 50;
+
+let called = [];
+
+// LOGIN
+function login() {
+    player = document.getElementById("username").value;
+    if (!player) return alert("Enter name!");
+
+    let saved = localStorage.getItem(player);
+    if (saved) {
+        let data = JSON.parse(saved);
+        balance = data.balance;
+        adminBalance = data.admin;
+    }
+
+    document.getElementById("login").style.display = "none";
+    document.getElementById("game").style.display = "block";
+    document.getElementById("playerName").innerText = "👤 " + player;
+
+    updateBalance();
+    generateCard();
+}
+
+// SAVE
+function save() {
+    localStorage.setItem(player, JSON.stringify({
+        balance: balance,
+        admin: adminBalance
+    }));
+}
+
+// 🎯 GENERATE UNIQUE BINGO CARD + FREE
+function generateCard() {
+    let table = document.getElementById("card");
+    table.innerHTML = "";
+
+    let ranges = [
+        [1,15],[16,30],[31,45],[46,60],[61,75]
+    ];
+
+    let card = [];
+
+    for (let c = 0; c < 5; c++) {
+        let col = [];
+        while (col.length < 5) {
+            let num = Math.floor(Math.random() * (ranges[c][1]-ranges[c][0]+1)) + ranges[c][0];
+            if (!col.includes(num)) col.push(num);
+        }
+        card.push(col);
+    }
+
+    for (let r = 0; r < 5; r++) {
+        let row = table.insertRow();
+        for (let c = 0; c < 5; c++) {
+            let cell = row.insertCell();
+
+            if (r === 2 && c === 2) {
+                cell.innerText = "FREE";
+                cell.classList.add("marked");
+                continue;
+            }
+
+            let num = card[c][r];
+            cell.innerText = num;
+
+            cell.onclick = function() {
+                if (called.includes(num)) {
+                    cell.classList.toggle("marked");
+                    checkWin();
+                } else {
+                    alert("❌ Not called!");
+                }
+            }
+        }
+    }
+}
+
+// CALL NUMBER
+function callNumber() {
+    if (balance <= 0) {
+        alert("💀 Game Over!");
+        return;
+    }
+
+    let num;
+    do {
+        num = Math.floor(Math.random() * 75) + 1;
+    } while (called.includes(num));
+
+    called.push(num);
+    document.getElementById("number").innerText = "Number: " + num;
+
+    balance -= bet;
+
+    let adminCut = bet * 0.2;
+    adminBalance += adminCut;
+
+    updateBalance();
+    save();
+}
+
+// 🎉 4 CORNERS WIN
+function checkWin() {
+    let rows = document.querySelectorAll("#card tr");
+
+    let tl = rows[0].cells[0];
+    let tr = rows[0].cells[4];
+    let bl = rows[4].cells[0];
+    let br = rows[4].cells[4];
+
+        tl.classList.contains("marked") &&
+        tr.classList.contains("marked") &&
+        bl.classList.contains("marked") &&
+        br.classList.contains("marked")
+    ) {
+        document.getElementById("result").innerText = "🎉 4 CORNERS WIN!";
+        balance += 300;
+        updateBalance();
+        save();
+        document.getElementById("winSound").play();
+    }
+}
+
+// RESTART
+function restart() {
+    called = [];
+    document.getElementById("result").innerText = "";
+    generateCard();
+}
+
+// UPDATE
+function updateBalance() {
+    document.getElementById("balance").innerText = balance;
+    document.getElementById("admin").innerText = adminBalance;
+}
+</script>
+
+</body>
+</html>
