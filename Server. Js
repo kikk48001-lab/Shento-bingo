@@ -6,7 +6,7 @@ const app = express();
 app.use(bodyParser.json());
 
 // 🔴 እዚህ TOKEN አስገባ
-const TOKEN = "8744718432:AAHDKfPibI_Ne9LpYO290KfM2lJ-O-VkuxQ";
+const TOKEN = "8728392950:AAGwczMjPkfHsLSf_vj10I_LELzzCnsVaDI";
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
 let lastNumber = 0;
