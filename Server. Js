@@ -1,1 +1,48 @@
+const express = require("express");
+const bodyParser = require("body-parser");
+const axios = require("axios");
 
+const app = express();
+app.use(bodyParser.json());
+
+const TOKEN = "8728392950:AAGwczMjPkfHsLSf_vj10I_LELzzCnsVaDI"; // <-- እዚህ token አስገባ
+const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
+
+let lastNumber = 0;
+
+// Telegram webhook
+app.post("/update", async (req, res) => {
+    const message = req.body.message;
+
+    if (message) {
+        const chatId = message.chat.id;
+        const text = message.text;
+
+        // START COMMAND
+        if (text === "/start") {
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: chatId,
+                text: "🎰 Welcome to Shento Bingo!\nSend a number (1-75)"
+            });
+        }
+
+        // NUMBER INPUT
+        else if (!isNaN(text)) {
+            lastNumber = Number(text);
+
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+                chat_id: chatId,
+                text: `✅ Number received: ${lastNumber}`
+            });
+        }
+    }
+
+    res.sendStatus(200);
+});
+
+// API for website
+app.get("/number", (req, res) => {
+    res.json({ number: lastNumber });
+});
+
+app.listen(3000, () => console.log("Server running"));
