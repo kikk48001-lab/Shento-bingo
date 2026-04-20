@@ -1,67 +1,76 @@
-function checkWin() {
-    let cells = document.querySelectorAll("td");
+// 🎯 Mark cell when clicked
+document.querySelectorAll("td").forEach(cell => {
+    cell.addEventListener("click", function () {
+        this.classList.toggle("marked");
+        checkWin();
+    });
+});
 
-    // convert to 2D array
+// 📡 AUTO FETCH from server (Telegram numbers)
+setInterval(async () => {
+    try {
+        let res = await fetch("/number");
+        let data = await res.json();
+
+        if (data.number) {
+            document.getElementById("calledNumber").innerText =
+                "Called: " + data.number;
+        }
+    } catch (e) {
+        console.log("Fetch error");
+    }
+}, 3000);
+
+// 🏆 WIN SYSTEM
+function checkWin() {
+    const cells = document.querySelectorAll("td");
+
     let grid = [];
-    let index = 0;
+    let k = 0;
 
     for (let i = 0; i < 5; i++) {
         grid[i] = [];
         for (let j = 0; j < 5; j++) {
-            grid[i][j] = cells[index].classList.contains("marked");
-            index++;
+            grid[i][j] = cells[k].classList.contains("marked");
+            k++;
         }
     }
 
-    // ✅ Row check
+    let winTypes = [];
+
+    // Rows
     for (let i = 0; i < 5; i++) {
-        if (grid[i].every(v => v)) {
-            return win("Row Bingo 🎉");
-        }
+        if (grid[i].every(v => v)) winTypes.push("Row");
     }
 
-    // ✅ Column check
+    // Columns
     for (let j = 0; j < 5; j++) {
-        let colWin = true;
+        let col = true;
         for (let i = 0; i < 5; i++) {
-            if (!grid[i][j]) colWin = false;
+            if (!grid[i][j]) col = false;
         }
-        if (colWin) {
-            return win("Column Bingo 🎉");
-        }
+        if (col) winTypes.push("Column");
     }
 
-    // ✅ Diagonal (top-left → bottom-right)
-    let diag1 = true;
-    for (let i = 0; i < 5; i++) {
-        if (!grid[i][i]) diag1 = false;
-    }
-    if (diag1) {
-        return win("Diagonal Bingo 🎉");
+    // Diagonal 1
+    if ([0,1,2,3,4].every(i => grid[i][i])) {
+        winTypes.push("Diagonal");
     }
 
-    // ✅ Diagonal (top-right → bottom-left)
-    let diag2 = true;
-    for (let i = 0; i < 5; i++) {
-        if (!grid[i][4 - i]) diag2 = false;
-    }
-    if (diag2) {
-        return win("Diagonal Bingo 🎉");
+    // Diagonal 2
+    if ([0,1,2,3,4].every(i => grid[i][4 - i])) {
+        winTypes.push("Diagonal");
     }
 
-    // ✅ 4 Corners
-    if (
-        grid[0][0] &&
-        grid[0][4] &&
-        grid[4][0] &&
-        grid[4][4]
-    ) {
-        return win("4 Corners Bingo 🎉");
+    // 4 Corners
+    if (grid[0][0] && grid[0][4] && grid[4][0] && grid[4][4]) {
+        winTypes.push("4 Corners");
     }
 
-    document.getElementById("result").innerText = "Keep Playing...";
-}
-
-function win(message) {
-    document.getElementById("result").innerText = message;
+    if (winTypes.length > 0) {
+        document.getElementById("result").innerText =
+            "BINGO 🎉 → " + winTypes.join(", ");
+    } else {
+        document.getElementById("result").innerText = "Keep Playing...";
+    }
 }
