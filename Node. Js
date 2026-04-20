@@ -1,1 +1,28 @@
 
+const express = require("express");
+const app = express();
+
+let currentNumber = null;
+
+// Telegram webhook endpoint
+app.get("/update", (req, res) => {
+    let msg = req.query.text;
+
+    if (!msg) return res.send("No message");
+
+    let num = parseInt(msg);
+
+    if (!isNaN(num) && num >= 1 && num <= 75) {
+        currentNumber = num;
+        console.log("New Number:", num);
+    }
+
+    res.send("OK");
+});
+
+// Website fetch endpoint
+app.get("/number", (req, res) => {
+    res.json({ number: currentNumber });
+});
+
+app.listen(3000, () => console.log("Server running"));
